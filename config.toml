@@ -1,0 +1,19 @@
+[ind570]
+host = "192.168.0.100"
+port = 1701
+simulate = true
+
+[scanner]
+host = "192.168.1.100"
+port = 4001
+simulate = true
+
+[logger]
+log_dir = "logs"
+
+[web]
+host = "0.0.0.0"
+port = 8080
+
+[polling]
+interval = 1.0

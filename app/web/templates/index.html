@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Landliebe Waage</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Landliebe Waage</h1>
+            <div class="status">
+                <span id="connection-indicator" class="led led-red"></span>
+                <span id="connection-text">Nicht verbunden</span>
+            </div>
+        </header>
+
+        <main>
+            <div class="weight-display">
+                <div class="weight-value" id="weight-value">--</div>
+                <div class="weight-unit" id="weight-unit">kg</div>
+            </div>
+
+            <div class="scale-status">
+                <span id="stability-indicator" class="led led-yellow"></span>
+                <span id="stability-text">Keine Daten</span>
+            </div>
+
+            <div id="error-banner" class="error-banner hidden"></div>
+
+            <div class="scale-calc">
+                <h2>Brutto / Tara / Netto</h2>
+                <div class="calc-row">
+                    <label>Brutto</label>
+                    <input type="number" id="calc-brutto" class="calc-input" placeholder="0.0" step="0.1">
+                    <span class="calc-unit">kg</span>
+                </div>
+                <div class="calc-row">
+                    <label>Tara</label>
+                    <input type="number" id="calc-tara" class="calc-input" placeholder="0.0" step="0.1">
+                    <span class="calc-unit">kg</span>
+                </div>
+                <div class="calc-divider"></div>
+                <div class="calc-row calc-result">
+                    <label>Netto</label>
+                    <input type="number" id="calc-netto" class="calc-input" readonly tabindex="-1">
+                    <span class="calc-unit">kg</span>
+                </div>
+                <div class="calc-hint" id="calc-hint">Klicke auf einen Punkt im Diagramm oder einen Eintrag zum Übernehmen</div>
+                <button class="calc-clear" id="calc-clear">Zurücksetzen</button>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="logs">Logs</button>
+                <button class="tab-btn" data-tab="scans">Scans</button>
+                <button class="tab-btn" data-tab="wiege">Wiege</button>
+            </div>
+
+            <div class="tab-content" id="tab-logs">
+                <div class="log-section">
+                    <div class="scan-header">
+                        <h2>Gewichtslog</h2>
+                        <input type="date" id="log-date" class="date-picker">
+                    </div>
+                    <div class="table-scroll">
+                    <table id="log-table">
+                        <thead>
+                            <tr>
+                                <th>Zeitstempel</th>
+                                <th>Gewicht (kg)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body"></tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-scans" style="display:none">
+                <div class="scan-section">
+                    <div class="scan-header">
+                        <h2>QR Scans</h2>
+                        <div class="scan-controls">
+                            <input type="date" id="scan-date" class="date-picker">
+                        </div>
+                    </div>
+                    <div class="scan-filters">
+                        <button class="filter-btn active" data-filter="all">Alle</button>
+                        <button class="filter-btn" data-filter="open">Offen</button>
+                        <button class="filter-btn" data-filter="ok">OK</button>
+                    </div>
+                    <div class="table-scroll">
+                    <table id="scan-table">
+                        <thead>
+                            <tr>
+                                <th>Zeit</th>
+                                <th>QR-ID</th>
+                                <th>Einwaage</th>
+                                <th>Auswaage</th>
+                                <th>Netto</th>
+                                <th>#</th>
+                                <th>Kennzeichen</th>
+                                <th>Firma</th>
+                                <th>Produkt</th>
+                                <th>Grund</th>
+                                <th>OK</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scan-body"></tbody>
+                    </table>
+                    </div>
+                    <div class="scan-info" id="scan-info">Keine Scans an diesem Tag</div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-wiege" style="display:none">
+                <div class="chart-section">
+                    <div class="chart-header">
+                        <h2>Gewichtsverlauf</h2>
+                        <div class="chart-controls">
+                            <input type="date" id="chart-date" class="date-picker">
+                            <input type="time" id="chart-time-from" class="time-picker" value="00:00" step="300">
+                            <span class="time-sep">–</span>
+                            <input type="time" id="chart-time-to" class="time-picker" value="23:59" step="300">
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="weight-chart"></canvas>
+                    </div>
+                    <div class="chart-info">
+                        <span id="chart-count">0 Einträge</span>
+                        <span id="chart-max">Max: --</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="reason-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Grund der Änderung</h3>
+            <p>Gewicht wurde verändert. Bitte Begründung angeben:</p>
+            <input type="text" id="reason-input" class="modal-input" placeholder="Pflichtfeld" autocomplete="off"><br>
+            <div class="modal-buttons">
+                <button class="modal-btn" id="reason-cancel">Abbrechen</button>
+                <button class="modal-btn modal-btn-primary" id="reason-confirm">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+        var logEntries = [];
+        var chart = null;
+        var allEntries = [];
+        var scanEntries = [];
+        var currentScanFilter = "all";
+        var pendingEdit = null;
+
+        function toISODateString(date) {
+            var y = date.getFullYear();
+            var m = String(date.getMonth() + 1).padStart(2, "0");
+            var d = String(date.getDate()).padStart(2, "0");
+            return y + "-" + m + "-" + d;
+        }
+
+        // ── Tab switching ─────────────────────────
+
+        function initTabs() {
+            document.querySelectorAll(".tab-btn").forEach(function(btn) {
+                btn.addEventListener("click", function() {
+                    document.querySelectorAll(".tab-btn").forEach(function(b) { b.classList.remove("active"); });
+                    this.classList.add("active");
+                    var id = this.dataset.tab;
+                    document.querySelectorAll(".tab-content").forEach(function(c) { c.style.display = "none"; });
+                    document.getElementById("tab-" + id).style.display = "block";
+                    if (id === "wiege" && chart) chart.resize();
+                });
+            });
+            document.getElementById("tab-logs").style.display = "block";
+        }
+
+        function initChart() {
+            var ctx = document.getElementById("weight-chart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: "line",
+                data: { labels: [], datasets: [{ label: "Gewicht", data: [], borderColor: "#e94560", backgroundColor: "rgba(233,69,96,0.1)", borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    onClick: function(ev, el) { if (el.length > 0) { fillNextField(chart.data.datasets[0].data[el[0].index]); } },
+                    interaction: { mode: "x", intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: "rgba(22,33,62,0.95)", titleColor: "#e0e0e0", bodyColor: "#e94560",
+                            borderColor: "#0f3460", borderWidth: 1, cornerRadius: 6, padding: 10,
+                            titleFont: { size: 13 }, bodyFont: { size: 15, weight: "bold" },
+                            callbacks: {
+                                title: function(i) { return i.length ? "Uhrzeit: " + i[0].label : ""; },
+                                label: function(c) { return "Menge: " + c.parsed.y.toLocaleString("de-DE", {minimumFractionDigits:1, maximumFractionDigits:1}) + " kg"; },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: { ticks: { color: "#a0a0b0", maxTicksLimit: 10 }, grid: { color: "rgba(15,52,96,0.3)" } },
+                        y: { ticks: { color: "#a0a0b0", callback: function(v) { return v.toLocaleString("de-DE"); } }, grid: { color: "rgba(15,52,96,0.3)" }, beginAtZero: true },
+                    },
+                },
+                plugins: [{ id: "crosshair",
+                    afterDraw: function(c) {
+                        if (c.tooltip && c.tooltip.opacity > 0) {
+                            var x = c.tooltip.x, y0 = c.scales.y.top, y1 = c.scales.y.bottom;
+                            c.ctx.save(); c.ctx.beginPath(); c.ctx.moveTo(x, y0); c.ctx.lineTo(x, y1);
+                            c.ctx.lineWidth = 1; c.ctx.strokeStyle = "rgba(233,69,96,0.4)"; c.ctx.setLineDash([4,4]); c.ctx.stroke(); c.ctx.restore();
+                        }
+                    },
+                }],
+            });
+        }
+
+        function extractTime(s) { return s.substring(11, 16); }
+
+        function applyTimeFilter() {
+            var from = document.getElementById("chart-time-from").value;
+            var to = document.getElementById("chart-time-to").value;
+            var filtered = allEntries.filter(function(e) { var t = extractTime(e.time); return t >= from && t <= to; });
+            var dedup = {};
+            filtered.forEach(function(e) { dedup[e.time.substring(11, 19)] = e.weight; });
+            var labels = Object.keys(dedup), values = Object.values(dedup);
+            var maxW = Math.max.apply(null, values.length ? values : [0]);
+            chart.data.labels = labels; chart.data.datasets[0].data = values; chart.update();
+            document.getElementById("chart-count").textContent = labels.length + " Einträge";
+            document.getElementById("chart-max").textContent = labels.length > 0 ? "Max: " + maxW.toLocaleString("de-DE", {minimumFractionDigits:1,maximumFractionDigits:1}) + " kg" : "Keine Daten";
+        }
+
+        function loadChartData(d) {
+            fetch("/api/logs?date=" + encodeURIComponent(d)).then(function(r) { return r.json(); }).then(function(data) { allEntries = data.entries; applyTimeFilter(); });
+        }
+
+        function appendChartPoint(d, w) {
+            if (!chart) return;
+            if (document.getElementById("chart-date").value !== d) return;
+            var iso = new Date().toISOString(), sk = iso.substring(0, 19);
+            for (var i = allEntries.length - 1; i >= 0; i--) { if (allEntries[i].time.substring(0, 19) === sk) { allEntries[i].weight = w; applyTimeFilter(); return; } }
+            allEntries.push({ time: iso, weight: w, stable: true }); applyTimeFilter();
+        }
+
+        // ── Calculator ────────────────────────────
+
+        function fillNextField(w) {
+            var b = document.getElementById("calc-brutto"), t = document.getElementById("calc-tara");
+            if (b.value === "" || b.value === "0") { b.value = w; b.classList.add("calc-input-filled"); document.getElementById("calc-hint").textContent = "Klicke für Tara-Wert …"; }
+            else if (t.value === "" || t.value === "0") { t.value = w; t.classList.add("calc-input-filled"); document.getElementById("calc-hint").textContent = ""; }
+            updateNetto();
+        }
+
+        function updateNetto() {
+            var b = parseFloat(document.getElementById("calc-brutto").value) || 0;
+            var t = parseFloat(document.getElementById("calc-tara").value) || 0;
+            document.getElementById("calc-netto").value = (b - t).toFixed(1);
+        }
+
+        function clearCalc() {
+            document.getElementById("calc-brutto").value = ""; document.getElementById("calc-tara").value = ""; document.getElementById("calc-netto").value = "";
+            document.getElementById("calc-brutto").classList.remove("calc-input-filled"); document.getElementById("calc-tara").classList.remove("calc-input-filled");
+            document.getElementById("calc-hint").textContent = "Klicke auf einen Punkt im Diagramm oder einen Eintrag zum Übernehmen";
+        }
+
+        function initCalc() {
+            document.getElementById("calc-clear").addEventListener("click", clearCalc);
+            document.getElementById("calc-brutto").addEventListener("input", updateNetto);
+            document.getElementById("calc-tara").addEventListener("input", updateNetto);
+        }
+
+        // ── Logs table ────────────────────────────
+
+        function loadLogTable(dateStr) {
+            fetch("/api/logs?date=" + encodeURIComponent(dateStr)).then(function(r) { return r.json(); }).then(function(data) {
+                logEntries = data.entries;
+                renderLogTable();
+            });
+        }
+
+        function renderLogTable() {
+            var tbody = document.getElementById("log-body"); tbody.innerHTML = "";
+            logEntries.slice(-200).reverse().forEach(function(e) {
+                var row = tbody.insertRow(); row.className = "clickable-row";
+                row.onclick = function() { fillNextField(e.weight); };
+                row.insertCell().textContent = e.time.substring(11, 19);
+                row.insertCell().textContent = Number(e.weight).toLocaleString("de-DE", {minimumFractionDigits:1,maximumFractionDigits:1});
+                row.insertCell().textContent = e.stable ? "Stabil" : "Bewegung";
+            });
+        }
+
+        // ── Scans table ───────────────────────────
+
+        function loadScans(dateStr) {
+            fetch("/api/scans?date=" + encodeURIComponent(dateStr)).then(function(r) { return r.json(); }).then(function(data) {
+                scanEntries = data.entries;
+                renderScans();
+            });
+        }
+
+        function applyScanFilter() { renderScans(); }
+
+        function renderScans() {
+            var tbody = document.getElementById("scan-body"), info = document.getElementById("scan-info");
+            tbody.innerHTML = "";
+            var entries = scanEntries;
+            if (currentScanFilter === "open") {
+                entries = scanEntries.filter(function(e) { return !e.license_plate || !e.company || !e.product; });
+            } else if (currentScanFilter === "ok") {
+                entries = scanEntries.filter(function(e) { return e.status === "OK"; });
+            }
+            if (entries.length === 0) { info.style.display = "block"; info.textContent = currentScanFilter === "ok" ? "Keine OK-Scans" : (currentScanFilter === "open" ? "Keine offenen Scans" : "Keine Scans an diesem Tag"); return; }
+            info.style.display = "none";
+
+            entries.forEach(function(entry) {
+                var row = tbody.insertRow();
+                row.className = "clickable-row";
+                var ein = entry.einwaage ? parseFloat(entry.einwaage) : 0;
+                var aus = entry.auswaage ? parseFloat(entry.auswaage) : 0;
+                var netto = entry.netto ? parseFloat(entry.netto) : 0;
+                var changed = entry.hash === "CHANGED";
+                row.style.background = changed ? "rgba(241,196,15,0.08)" : "";
+
+                row.insertCell().textContent = entry.time ? entry.time.substring(11, 19) : "";        // Zeit
+                row.insertCell().textContent = entry.qr_id;                                             // QR-ID
+
+                // Einwaage editable
+                var cEin = row.insertCell();
+                var inpEin = document.createElement("input"); inpEin.type = "number"; inpEin.className = "scan-edit scan-weight"; inpEin.value = ein; inpEin.step = "0.1"; inpEin.dataset.original = ein; inpEin.dataset.timestamp = entry.time; inpEin.dataset.field = "einwaage";
+                inpEin.addEventListener("change", function() { onWeightEdit(this, entry, "einwaage"); });
+                cEin.appendChild(inpEin);
+
+                // Auswaage editable
+                var cAus = row.insertCell();
+                var inpAus = document.createElement("input"); inpAus.type = "number"; inpAus.className = "scan-edit scan-weight"; inpAus.value = aus; inpAus.step = "0.1"; inpAus.dataset.original = aus; inpAus.dataset.timestamp = entry.time; inpAus.dataset.field = "auswaage";
+                inpAus.addEventListener("change", function() { onWeightEdit(this, entry, "auswaage"); });
+                cAus.appendChild(inpAus);
+
+                // Netto read-only
+                var cNet = row.insertCell();
+                cNet.textContent = entry.netto ? Number(netto).toLocaleString("de-DE", {minimumFractionDigits:1,maximumFractionDigits:1}) : "";
+                cNet.className = "scan-cell-ro";
+
+                // Hash icon
+                var cHash = row.insertCell();
+                cHash.innerHTML = changed
+                    ? '<span class="hash-warn" title="Hash ungültig – Daten wurden geändert">&#9888;</span>'
+                    : (entry.hash ? '<span class="hash-ok" title="Hash gültig">&#10004;</span>' : "");
+
+                // Kennzeichen editable
+                var cLP = row.insertCell();
+                var inpLP = document.createElement("input"); inpLP.className = "scan-edit"; inpLP.value = entry.license_plate || ""; inpLP.dataset.timestamp = entry.time; inpLP.dataset.field = "license_plate";
+                inpLP.addEventListener("change", function() { saveScanMeta(this, entry); });
+                cLP.appendChild(inpLP);
+
+                // Firma editable
+                var cCo = row.insertCell();
+                var inpCo = document.createElement("input"); inpCo.className = "scan-edit"; inpCo.value = entry.company || ""; inpCo.dataset.timestamp = entry.time; inpCo.dataset.field = "company";
+                inpCo.addEventListener("change", function() { saveScanMeta(this, entry); });
+                cCo.appendChild(inpCo);
+
+                // Produkt editable
+                var cPr = row.insertCell();
+                var inpPr = document.createElement("input"); inpPr.className = "scan-edit"; inpPr.value = entry.product || ""; inpPr.dataset.timestamp = entry.time; inpPr.dataset.field = "product";
+                inpPr.addEventListener("change", function() { saveScanMeta(this, entry); });
+                cPr.appendChild(inpPr);
+
+                // Grund read-only
+                var cReason = row.insertCell();
+                cReason.textContent = entry.reason || "";
+                cReason.className = "scan-cell-ro";
+                cReason.style.fontSize = "0.78rem";
+                cReason.style.color = "#e94560";
+
+                // OK button
+                var cOK = row.insertCell();
+                if (entry.status !== "OK") {
+                    var btnOK = document.createElement("button"); btnOK.className = "scan-save-btn"; btnOK.textContent = "OK";
+                    btnOK.onclick = function(e) { e.stopPropagation(); approveScan(entry.time); };
+                    cOK.appendChild(btnOK);
+                } else {
+                    cOK.innerHTML = '<span class="hash-ok">&#10004;</span>';
+                }
+
+                // Click on row → fill calculator with einwaage or auswaage
+                row.onclick = function() { fillNextField(ein); };
+            });
+        }
+
+        function onWeightEdit(input, entry, field) {
+            var newVal = parseFloat(input.value);
+            var oldVal = parseFloat(input.dataset.original);
+            if (isNaN(newVal)) { input.value = oldVal; return; }
+            if (Math.abs(newVal - oldVal) < 0.01) return;  // unchanged
+            pendingEdit = { input: input, entry: entry, field: field, newVal: newVal, oldVal: oldVal };
+            document.getElementById("reason-modal").classList.remove("hidden");
+            document.getElementById("reason-input").value = "";
+            document.getElementById("reason-input").focus();
+        }
+
+        function confirmReason() {
+            var reason = document.getElementById("reason-input").value.trim();
+            if (!reason) { document.getElementById("reason-input").focus(); return; }
+            document.getElementById("reason-modal").classList.add("hidden");
+            if (!pendingEdit) return;
+            var p = pendingEdit; pendingEdit = null;
+            p.input.dataset.original = p.newVal;
+            var body = { time: p.entry.time, reason: reason };
+            body[p.field] = p.newVal;
+            body.license_plate = p.entry.license_plate || "";
+            body.company = p.entry.company || "";
+            body.product = p.entry.product || "";
+            fetch("/api/scans/update", { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) })
+                .then(function(r) { return r.json(); })
+                .then(function(d) { if (d.ok) { loadScans(document.getElementById("scan-date").value); } });
+        }
+
+        function cancelReason() {
+            document.getElementById("reason-modal").classList.add("hidden");
+            if (pendingEdit) { pendingEdit.input.value = pendingEdit.oldVal; pendingEdit = null; }
+        }
+
+        function saveScanMeta(input, entry) {
+            var row = input.closest("tr");
+            if (!row) return;
+            var inputs = row.querySelectorAll("input");
+            var lp = inputs.length > 2 ? inputs[2].value : "";
+            var co = inputs.length > 3 ? inputs[3].value : "";
+            var pr = inputs.length > 4 ? inputs[4].value : "";
+            fetch("/api/scans/update", { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ time: entry.time, license_plate: lp, company: co, product: pr }) });
+        }
+
+        function approveScan(ts) {
+            fetch("/api/scans/approve", { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ time: ts }) })
+                .then(function(r) { return r.json(); })
+                .then(function() { loadScans(document.getElementById("scan-date").value); });
+        }
+
+        // ── Scanner filter UI ─────────────────────
+
+        function initScanFilters() {
+            document.querySelectorAll(".filter-btn").forEach(function(btn) {
+                btn.addEventListener("click", function() {
+                    document.querySelectorAll(".filter-btn").forEach(function(b) { b.classList.remove("active"); });
+                    this.classList.add("active");
+                    currentScanFilter = this.dataset.filter;
+                    renderScans();
+                });
+            });
+        }
+
+        // ── Reason modal ──────────────────────────
+
+        function initReasonModal() {
+            document.getElementById("reason-confirm").addEventListener("click", confirmReason);
+            document.getElementById("reason-cancel").addEventListener("click", cancelReason);
+            document.getElementById("reason-input").addEventListener("keydown", function(e) { if (e.key === "Enter") confirmReason(); });
+        }
+
+        // ── Date pickers ──────────────────────────
+
+        function initScanDatePicker() {
+            var p = document.getElementById("scan-date"); p.value = toISODateString(new Date());
+            p.addEventListener("change", function() { loadScans(p.value); });
+        }
+
+        function initChartDatePicker() {
+            var p = document.getElementById("chart-date"); p.value = toISODateString(new Date());
+            p.addEventListener("change", function() { loadChartData(p.value); });
+            document.getElementById("chart-time-from").addEventListener("change", applyTimeFilter);
+            document.getElementById("chart-time-to").addEventListener("change", applyTimeFilter);
+        }
+
+        function initLogDatePicker() {
+            var p = document.getElementById("log-date"); p.value = toISODateString(new Date());
+            p.addEventListener("change", function() { loadLogTable(p.value); });
+        }
+
+        // ── SocketIO ──────────────────────────────
+
+        socket.on("connect", function() {
+            document.getElementById("connection-indicator").className = "led led-green";
+            document.getElementById("connection-text").textContent = "Verbunden";
+        });
+
+        socket.on("disconnect", function() {
+            document.getElementById("connection-indicator").className = "led led-red";
+            document.getElementById("connection-text").textContent = "Nicht verbunden";
+        });
+
+        socket.on("weight_update", function(data) {
+            var eb = document.getElementById("error-banner");
+            if (data.error) {
+                eb.textContent = "Fehler: " + data.error; eb.className = "error-banner visible";
+                document.getElementById("stability-indicator").className = "led led-red";
+                document.getElementById("stability-text").textContent = "Fehler";
+                document.getElementById("weight-value").textContent = "--"; return;
+            }
+            eb.className = "error-banner hidden";
+            document.getElementById("weight-value").textContent = Number(data.weight).toLocaleString("de-DE", {minimumFractionDigits:1,maximumFractionDigits:1});
+            document.getElementById("weight-unit").textContent = data.unit || "kg";
+            document.getElementById("stability-indicator").className = data.stable ? "led led-green" : "led led-yellow";
+            document.getElementById("stability-text").textContent = data.stable ? "Stabil" : "In Bewegung";
+            if (data.weight > 0) {
+                var now = new Date();
+                logEntries.unshift({ time: now.toISOString(), weight: data.weight, stable: data.stable });
+                if (logEntries.length > 500) logEntries.pop();
+                if (document.getElementById("tab-logs").style.display !== "none") renderLogTable();
+                appendChartPoint(toISODateString(now), data.weight);
+            }
+        });
+
+        socket.on("qr_scan", function(data) {
+            var picker = document.getElementById("scan-date");
+            if (picker.value !== toISODateString(new Date())) return;
+            scanEntries.push(data);
+            if (document.getElementById("tab-scans").style.display !== "none") renderScans();
+            var info = document.getElementById("scan-info");
+            info.textContent = "Neuer Scan: " + data.qr_id + " – " + Number(data.weight_scan).toLocaleString("de-DE", {minimumFractionDigits:1,maximumFractionDigits:1}) + " kg";
+            info.style.display = "block";
+            setTimeout(function() { if (scanEntries.length > 0) info.style.display = "none"; }, 4000);
+        });
+
+        // ── Init ──────────────────────────────────
+
+        initTabs();
+        initCalc();
+        initChart();
+        initScanDatePicker();
+        initChartDatePicker();
+        initLogDatePicker();
+        initScanFilters();
+        initReasonModal();
+        loadLogTable(toISODateString(new Date()));
+        loadChartData(toISODateString(new Date()));
+        loadScans(toISODateString(new Date()));
+    </script>
+</body>
+</html>

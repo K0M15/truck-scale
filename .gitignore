@@ -1,0 +1,4 @@
+.venv/
+log/
+logs/
+portable_python/

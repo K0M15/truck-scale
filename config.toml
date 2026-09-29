@@ -1,12 +1,12 @@
 [ind570]
 host = "192.168.0.100"
 port = 1701
-simulate = true
+simulate = false
 
 [scanner]
 host = "192.168.1.100"
 port = 4001
-simulate = true
+simulate = false
 
 [logger]
 log_dir = "logs"
@@ -16,4 +16,4 @@ host = "0.0.0.0"
 port = 8080
 
 [polling]
-interval = 1.0
+interval = 0.5

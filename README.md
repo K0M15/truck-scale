@@ -188,21 +188,37 @@ View service logs:
 sudo journalctl -u landliebe-waage -f
 ```
 
-## Windows – Running as a Service (NSSM)
+## Windows – Running as a Service (WinSW + Watchdog)
 
+The project includes service wrapper support using **WinSW** (Windows Service Wrapper) and an integrated watchdog (`service_runner.py`) with automatic restart on crash or unexpected exit.
+
+### Option 1: Native Windows Service (System Boot)
+
+1. Right-click `install_service.bat` -> **Run as Administrator**.
+2. The service `LandliebeWaage` is installed with `Automatic` startup and started immediately.
+
+Management scripts:
+- `start_service.bat` – Start service
+- `stop_service.bat` – Stop service
+- `restart_service.bat` – Restart service
+- `status_service.bat` – Check service status
+- `uninstall_service.bat` – Uninstall service (requires Administrator)
+
+Service configuration (`LandliebeWaage.xml`):
+- Restarts automatically within 5 seconds on crash (`<onfailure action="restart" delay="5 sec"/>`)
+- Starts on Windows boot (`<startmode>Automatic</startmode>`)
+
+---
+
+### Option 2: Background Runner with User Autostart (No Admin required)
+
+Enable autostart on user logon:
 ```powershell
-# Install NSSM (https://nssm.cc)
-nssm install LandliebeWaage .venv\Scripts\python.exe "-m app.main"
-nssm set LandliebeWaage AppDirectory C:\path\to\Landliebe-Waage
-nssm set LandliebeWaage AppStdout C:\path\to\Landliebe-Waage\logs\service_stdout.log
-nssm set LandliebeWaage AppStderr C:\path\to\Landliebe-Waage\logs\service_stderr.log
-nssm set LandliebeWaage Start SERVICE_AUTO_START
-nssm start LandliebeWaage
+powershell -ExecutionPolicy Bypass -File autostart_setup.ps1 -Action enable
 ```
 
-Uninstall:
+Manual background controls:
+- Start silently (no console window): Double-click `start_background.vbs`
+- Stop: Double-click `stop_background.bat`
+- Supervisor logs: `logs/watchdog.log`
 
-```powershell
-nssm stop LandliebeWaage
-nssm remove LandliebeWaage confirm
-```

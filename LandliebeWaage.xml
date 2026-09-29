@@ -1,0 +1,18 @@
+<service>
+  <id>LandliebeWaage</id>
+  <name>Landliebe Waage</name>
+  <description>Steuerungssoftware fuer industrielle LKW-Waage mit Mettler Toledo IND570</description>
+  <executable>C:\truck-scale\.venv\Scripts\python.exe</executable>
+  <arguments>service_runner.py</arguments>
+  <workingdirectory>C:\truck-scale</workingdirectory>
+  <logpath>C:\truck-scale\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <onfailure action="restart" delay="5 sec"/>
+  <onfailure action="restart" delay="10 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>false</delayedAutoStart>
+</service>

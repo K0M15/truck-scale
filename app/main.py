@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import signal
@@ -17,13 +18,18 @@ from app.web.routes import (
 from app.scanner.client import ScannerClient
 from app.scanner.logger import QRScanLogger
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-def load_config(path="config.toml"):
+
+def load_config(path=None):
+    if path is None:
+        path = PROJECT_ROOT / "config.toml"
     with open(path, "rb") as f:
         return tomllib.load(f)
 
 
 def main():
+    os.chdir(PROJECT_ROOT)
     config = load_config()
 
     scale_cfg = config["ind570"]

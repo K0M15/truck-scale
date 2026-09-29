@@ -213,21 +213,44 @@ sudo journalctl -u landliebe-waage -f
 
 ## Als Dienst einrichten (Windows)
 
-### NSSM (Non-Sucking Service Manager)
+Das Projekt enthält eine vollständige Dienstverwaltung auf Basis von **WinSW** (Windows Service Wrapper) und einem integrierten **Watchdog** (`service_runner.py`), der bei jedem Absturz oder unerwarteten Beenden automatisch nach 3–5 Sekunden neu startet.
 
+### Option 1: Echter Windows-Dienst (Empfohlen für Serverbetrieb)
+
+Der Dienst startet automatisch mit Windows (auch vor der Benutzeranmeldung).
+
+#### Installation & Start (1-Klick)
+Rechtsklick auf `install_service.bat` -> **Als Administrator ausführen**.
+Das Skript installiert den Dienst `LandliebeWaage` und startet ihn sofort.
+
+#### Verwaltungsskripte
+- `start_service.bat` – Startet den Dienst
+- `stop_service.bat` – Beendet den Dienst
+- `restart_service.bat` – Startet den Dienst neu
+- `status_service.bat` – Zeigt aktuellen Status an
+- `uninstall_service.bat` – Entfernt den Dienst (mit Admin-Rechten)
+
+#### Konfiguration (`LandliebeWaage.xml`)
+- Automatischer Neustart bei Absturz (`<onfailure action="restart" delay="5 sec"/>`)
+- Automatischer Start bei Systemboot (`<startmode>Automatic</startmode>`)
+- Log-Rotation für Dienstausgaben in `logs/`
+
+---
+
+### Option 2: Hintergrund-Dienst mit Autostart (ohne Administratorrechte)
+
+Falls keine Administratorrechte vorliegen, kann der Server als Hintergrundprozess mit automatischer Überwachung eingerichtet werden:
+
+#### Autostart bei Benutzer-Anmeldung aktivieren:
 ```powershell
-# NSSM installieren (https://nssm.cc)
-nssm install LandliebeWaage .venv\Scripts\python.exe "-m app.main"
-nssm set LandliebeWaage AppDirectory C:\Pfad\zu\Landliebe-Waage
-nssm set LandliebeWaage AppStdout C:\Pfad\zu\Landliebe-Waage\logs\service_stdout.log
-nssm set LandliebeWaage AppStderr C:\Pfad\zu\Landliebe-Waage\logs\service_stderr.log
-nssm set LandliebeWaage Start SERVICE_AUTO_START
-nssm start LandliebeWaage
+powershell -ExecutionPolicy Bypass -File autostart_setup.ps1 -Action enable
 ```
+(Status prüfen: `-Action status`, Deaktivieren: `-Action disable`)
 
-Deinstallieren:
+#### Manuell im Hintergrund starten / stoppen:
+- Starten (ohne Konsolenfenster): Doppelklick auf `start_background.vbs`
+- Stoppen: Doppelklick auf `stop_background.bat`
 
-```powershell
-nssm stop LandliebeWaage
-nssm remove LandliebeWaage confirm
-```
+#### Überwachungs-Logs:
+- `logs/watchdog.log` zeichnet alle Starts, Abstürze und automatischen Wiederanläufe auf.
+

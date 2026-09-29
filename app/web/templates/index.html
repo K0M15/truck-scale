@@ -188,7 +188,7 @@
             var ctx = document.getElementById("weight-chart").getContext("2d");
             chart = new Chart(ctx, {
                 type: "line",
-                data: { labels: [], datasets: [{ label: "Gewicht", data: [], borderColor: "#e94560", backgroundColor: "rgba(233,69,96,0.1)", borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true }] },
+                data: { labels: [], datasets: [{ label: "Gewicht", data: [], borderColor: "#c0262d", backgroundColor: "rgba(192,38,45,0.08)", borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true }] },
                 options: {
                     responsive: true, maintainAspectRatio: false, animation: false,
                     onClick: function(ev, el) { if (el.length > 0) { fillNextField(chart.data.datasets[0].data[el[0].index]); } },
@@ -196,9 +196,9 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: "rgba(22,33,62,0.95)", titleColor: "#e0e0e0", bodyColor: "#e94560",
-                            borderColor: "#0f3460", borderWidth: 1, cornerRadius: 6, padding: 10,
-                            titleFont: { size: 13 }, bodyFont: { size: 15, weight: "bold" },
+                            backgroundColor: "rgba(255,255,255,0.96)", titleColor: "#1e293b", bodyColor: "#c0262d",
+                            borderColor: "#e2e8f0", borderWidth: 1, cornerRadius: 8, padding: 12,
+                            titleFont: { size: 13, weight: "600" }, bodyFont: { size: 15, weight: "bold" },
                             callbacks: {
                                 title: function(i) { return i.length ? "Uhrzeit: " + i[0].label : ""; },
                                 label: function(c) { return "Menge: " + c.parsed.y.toLocaleString("de-DE", {minimumFractionDigits:1, maximumFractionDigits:1}) + " kg"; },
@@ -206,8 +206,8 @@
                         },
                     },
                     scales: {
-                        x: { ticks: { color: "#a0a0b0", maxTicksLimit: 10 }, grid: { color: "rgba(15,52,96,0.3)" } },
-                        y: { ticks: { color: "#a0a0b0", callback: function(v) { return v.toLocaleString("de-DE"); } }, grid: { color: "rgba(15,52,96,0.3)" }, beginAtZero: true },
+                        x: { ticks: { color: "#64748b", maxTicksLimit: 10 }, grid: { color: "rgba(226,232,240,0.8)" } },
+                        y: { ticks: { color: "#64748b", callback: function(v) { return v.toLocaleString("de-DE"); } }, grid: { color: "rgba(226,232,240,0.8)" }, beginAtZero: true },
                     },
                 },
                 plugins: [{ id: "crosshair",
@@ -215,7 +215,7 @@
                         if (c.tooltip && c.tooltip.opacity > 0) {
                             var x = c.tooltip.x, y0 = c.scales.y.top, y1 = c.scales.y.bottom;
                             c.ctx.save(); c.ctx.beginPath(); c.ctx.moveTo(x, y0); c.ctx.lineTo(x, y1);
-                            c.ctx.lineWidth = 1; c.ctx.strokeStyle = "rgba(233,69,96,0.4)"; c.ctx.setLineDash([4,4]); c.ctx.stroke(); c.ctx.restore();
+                            c.ctx.lineWidth = 1; c.ctx.strokeStyle = "rgba(192,38,45,0.4)"; c.ctx.setLineDash([4,4]); c.ctx.stroke(); c.ctx.restore();
                         }
                     },
                 }],
